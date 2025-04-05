@@ -1,42 +1,88 @@
-import React, { useEffect, useState } from "react";
-import web3 from "./web3";
+import { useState, useEffect } from "react";
 
-function App() {
-  const [account, setAccount] = useState(null);
-  const contractABI = [
-    /* ABI array from Truffle after deployment */
-  ];
-  const contractAddress = "YOUR_CONTRACT_ADDRESS_HERE";
+const ConnectMetaMask = () => {
+  const [isConnected, setIsConnected] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [isRequestPending, setIsRequestPending] = useState(false);
+  const [account, setAccount] = useState(null); // State for storing the connected account
 
-  const contract = new web3.eth.Contract(contractABI, contractAddress);
+  // Check if the user is already connected
+  useEffect(() => {
+    if (window.ethereum) {
+      checkIfConnected();
+    }
+  }, []);
 
-  const mintTicket = async (ticketName) => {
-    await contract.methods
-      .mintTicket(account, ticketName)
-      .send({ from: account });
+  const checkIfConnected = async () => {
+    try {
+      const accounts = await window.ethereum.request({
+        method: "eth_accounts",
+      });
+      if (accounts.length > 0) {
+        setIsConnected(true);
+        setAccount(accounts[0]); // Set the account address
+      }
+    } catch (err) {
+      console.error("Error checking connection", err);
+      setError("Failed to check connection");
+    }
   };
 
-  useEffect(() => {
-    const loadAccount = async () => {
-      const accounts = await web3.eth.getAccounts();
-      setAccount(accounts[0]);
-    };
-    loadAccount();
-  }, []);
+  const requestPermissions = async () => {
+    if (isRequestPending) {
+      console.log("Request is already in progress. Please wait.");
+      return;
+    }
+
+    setIsRequestPending(true);
+    setLoading(true);
+
+    try {
+      // Request permission to connect the wallet
+      await window.ethereum.request({
+        method: "wallet_requestPermissions",
+        params: [{ eth_accounts: {} }],
+      });
+
+      // After success, check if accounts are available
+      checkIfConnected();
+    } catch (err) {
+      console.error("Error requesting permissions", err);
+      setError("Connection request failed. Please try again.");
+    } finally {
+      setIsRequestPending(false);
+      setLoading(false);
+    }
+  };
+
+  const handleConnectClick = () => {
+    // If already connected, no need to request again
+    if (isConnected) {
+      console.log("Already connected");
+      return;
+    }
+    requestPermissions();
+  };
 
   return (
     <div>
-      <h1>Welcome to the Ticketing App</h1>
-      <p>Account: {account ? account : "Not connected"}</p>
-      <button
-        onClick={() =>
-          window.ethereum.request({ method: "eth_requestAccounts" })
-        }
-      >
-        Connect Wallet
-      </button>
+      <h2>Connect with MetaMask</h2>
+      {isConnected ? (
+        <>
+          <p>Connected! Account: {account}</p>{" "}
+          {/* Show the connected account address */}
+        </>
+      ) : (
+        <>
+          <button onClick={handleConnectClick} disabled={loading}>
+            {loading ? "Connecting..." : "Connect to MetaMask"}
+          </button>
+          {error && <p style={{ color: "red" }}>{error}</p>}
+        </>
+      )}
     </div>
   );
-}
+};
 
-export default App;
+export default ConnectMetaMask;
